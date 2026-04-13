@@ -1,0 +1,41 @@
+name: Semgrep CI
+
+on:
+  # Trigger on every push to the main branch
+  push:
+    branches: [main, master]
+  # Trigger on every Pull Request
+  pull_request:
+    branches: [main, master]
+  # Allows you to run this manually from the "Actions" tab
+  workflow_dispatch:
+
+jobs:
+  semgrep:
+    name: Semgrep Scan
+    runs-on: ubuntu-latest
+    # 'permissions' allows the action to write comments on your PRs
+    permissions:
+      contents: read
+      checks: write
+      pull-requests: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Semgrep Action
+        uses: semgrep/semgrep-action@v1
+        with:
+          # Use 'auto' to use Semgrep's community-curated security rules
+          # This is the best way to get "everything" covered without writing rules yourself.
+          config: >-
+            p/default
+            p/python
+            p/javascript
+            p/security-audit
+          # If you have a local .semgrep.yml, you can add it here too:
+          # config: '.semgrep.yml'
+          
+          # This tells Semgrep to fail the build if it finds high-severity issues
+          error: true
