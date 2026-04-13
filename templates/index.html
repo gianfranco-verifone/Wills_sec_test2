@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ScanTest1 - Asset & Vulnerability Dashboard</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: #f0f2f5;
+            color: #333;
+            line-height: 1.6;
+        }
+        h1, h2, h3 { color: #2c3e50; }
+        header { background: #2c3e50; padding: 15px 30px; display: flex; justify-content: space-between; align-items: center; }
+        .header-right { display: flex; gap: 15px; }
+        
+        .container {
+            max-width: 1400px;
+            margin: 20px auto;
+            padding: 0 20px;
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .stat-card {
+            background: white;
+            padding: 25px;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        
+        .stat-card h3 {
+            font-size: 14px;
+            color: #7f8c9d;
+            margin-bottom: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .stat-card .value {
+            font-size: 28px;
+            font-weight: 700;
+            color: #2c3e50;
+        }
+        
+        .chart-container {
+            background: white;
+            padding: 25px;
+            border-radius: 12px;
+            height: 400px;
+            margin-bottom: 30px;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: white;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        
+        thead { background: #2c3e50; color: white; }
+        th, td {
+            padding: 14px 20px;
+            text-align: left;
+            border-bottom: 1px solid #eaeaea;
+        }
+        
+        thead th { font-weight: 600; text-transform: uppercase; font-size: 12px; letter-spacing: 0.5px; }
+        tbody tr:last-child td { border-bottom: none; }
+        
+        .os-pie {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            margin-top: 15px;
+        }
+        
+        .os-tag {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: #ecf0f1;
+            padding: 8px 15px;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: 500;
+        }
+        
+        .os-tag .percent { font-weight: 700; color: #27ae60; }
+        .os-tag .count { color: #7f8c9d; }
+        
+        .form-card {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            margin-bottom: 30px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        
+        .form-card h2 { color: #2c3e50; margin-bottom: 25px; }
+        
+        .form-group { margin-bottom: 20px; }
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #57606f;
+        }
+        
+        .form-group input, .form-group select {
+            width: 100%;
+            padding: 12px 15px;
+            border: 2px solid #dfe6e9;
+            border-radius: 8px;
+            font-size: 15px;
+            transition: border-color 0.2s;
+        }
+        
+        .form-group input:focus, .form-group select:focus {
+            outline: none;
+            border-color: #3498db;
+        }
+        
+        .form-actions {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+        }
+        
+        .btn {
+            padding: 12px 25px;
+            border: none;
+            border-radius: 8px;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .btn-primary {
+            background: #3498db;
+            color: white;
+        }
+        
+        .btn-primary:hover { background: #2980b9; }
+        
+        .btn-secondary {
+            background: #95a5a6;
+            color: white;
+        }
+        
+        .btn-secondary:hover { background: #7f8c8d; }
+        
+        .btn-danger {
+            background: #e74c3c;
+            color: white;
+        }
+        
+        .btn-danger:hover { background: #c0392b; }
+        .btn-success { background: #27ae60; color: white; }
+        .btn-success:hover { background: #229954; }
+        
+        .severity-badge {
+            padding: 5px 12px;
+            border-radius: 15px;
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+        }
+        
+        .severity-critical { background: #e74c3c; color: white; }
+        .severity-high { background: #e67e22; color: white; }
+        .severity-medium { background: #27ae60; color: white; }
+        .severity-low { background: #3498db; color: white; }
+        
+        .action-btn {
+            margin: 5px;
+        }
+        
+        hr {
+            border: none;
+            border-top: 1px solid #eaeaea;
+            margin: 30px 0;
+        }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <h1>🔍 ScanTest1 - Asset & Vulnerability Dashboard</h1>
+        <div class="header-right">
+            <a href="{{ url_for('index') }}" class="btn btn-secondary">← Back to Home</a>
+            <a href="{{ url_for('qualys_sync') }}" class="btn btn-success">⚡ Run Sync</a>
+        </div>
+    </header>
+    
+    <div class="container">
+        <div class="stats-grid">
+            <div class="stat-card">
+                <h3>Total Assets</h3>
+                <div class="value">{{ assets_count }}</div>
+            </div>
+            <div class="stat-card">
+                <h3>Critical & High%</h3>
+                <div class="value">{{ critical_percent }}%</div>
+            </div>
+            <div class="stat-card">
+                <h3>Total Vulnerabilities</h3>
+                <div class="value">{{ total_vulns }}</div>
+            </div>
+            <div class="stat-card">
+                <h3>New (30 Days)</h3>
+                <div class="value">{{ recent_vulns }}</div>
+            </div>
+        </div>
+        
+        <div class="chart-container">
+            <h2>🖥️ Asset Distribution by OS</h2>
+            <div class="os-pie">
+                {% for stat in os_stats %}
+                <div class="os-tag">
+                    <span>{{ stat.os }}</span>
+                    <span class="count">{{ stat.count }}</span>
+                    <span class="percent">{{ (stat.count/assets_count)*100|round(1) }}%</span>
+                </div>
+                {% endfor %}
+            </div>
+            <p style="color: #7f8c9d; margin-top: 10px; font-size: 13px;">
+                Assets with {{ os_stats|length }}+ operating systems tracked
+            </p>
+        </div>
+        
+        <div class="chart-container">
+            <h2>🏆 Assets with Most Critical Vulnerabilities</h2>
+            {% for item in top_critical_count[:5] %}
+            <div class="stat-card">
+                <h3>
+                    <strong>{{ item.asset or 'Unknown' }}</strong>
+                    ({{ item.os or 'Unknown' }})
+                </h3>
+                <div class="value text-red">{{ item.critical_vulns }} Critical Vulnerabilities</div>
+            </div>
+            {% else %}
+            <p>No critical vulnerabilities found yet.</p>
+            {% endfor %}
+        </div>
+        
+        <div class="chart-container">
+            <h2>📊 Vulnerabilities by Severity</h2>
+            {% for severity, count in severity_counts %}
+            <div class="stat-card">
+                <h3>{{ severity.title() }} Vulnerabilities</h3>
+                <div class="value {% if severity == 'critical' %}text-red{% elif severity == 'high' %}text-orange{% endif %}">{{ count }}</div>
+            </div>
+            {% endfor %}
+        </div>
+        
+        <div class="chart-container">
+            <h2>📉 Recent Vulnerabilities (Last 30 Days)</h2>
+            <table class="table">
+                <thead><tr><th>Asset Name</th><th>Vulnerability</th><th>Severity</th><th>Service</th><th>Detected</th></tr></thead>
+                <tbody>
+                    {% for row in recent_vulns %}
+                    <tr><td>{{ row|truncate(20) }}</td><td>{% for v in row %}{{ v.name }}{% endfor %}</td><td>{% for s in row %}{{ s.severity }}{% endfor %}</td><td>-</td><td>-</td></tr>
+                    {% else %}
+                    <tr><td colspan="5" style="text-align:center;color:#7f8c9d;">No recent vulnerabilities</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</body>
+</html>

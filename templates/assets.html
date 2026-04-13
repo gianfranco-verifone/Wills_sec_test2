@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>All Assets - ScanTest1</title>
+    <style>
+        body { background: #f0f2f5; font-family: sans-serif; margin: 0; padding: 20px; }
+        header { background: #2c3e50; padding: 15px 30px; color: white; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; }
+        .barrier { border: none; border-top: 1px solid #eaeaea; margin: 20px 0; }
+        .container { max-width: 1200px; margin: 0 auto; }
+        .filters { background: white; padding: 20px; border-radius: 12px; margin-bottom: 20px; }
+        .table { background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        th, td { padding: 14px 20px; text-align: left; border-bottom: 1px solid #eaeaea; }
+        th { background: #2c3e50; color: white; text-transform: uppercase; font-size: 12px; }
+        .btn { padding: 8px 16px; border: none; border-radius: 6px; background: #3498db; color: white; text-decoration: none; cursor: pointer; }
+        .btn:hover { background: #2980b9; }
+        .form-actions { margin-top: 30px; }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>🖥️ All Assets</h1>
+        <div class="header-right">
+            <a href="{{ url_for('index') }}" class="btn">← Dashboard</a>
+            <a href="{{ url_for('add_asset') }}" class="btn" style="background: #27ae60;">➕ Add New</a>
+        </div>
+    </header>
+    
+    <div class="container">
+        <div class="filters">
+            <div style="margin-bottom: 15px;">
+                <div style="margin-bottom: 10px;"><strong>Filters:</strong></div>
+                <input type="text" style="padding: 8px 12px; border: 2px solid #dfe6e9; border-radius: 6px;" placeholder="Search by name..." id="search">
+                <span class="btn" onclick="filterTable('search')">Search</span>
+                <input type="text" style="padding: 8px 12px; border: 2px solid #dfe6e9; border-radius: 6px; margin-left: 10px;" placeholder="Filter by OS..." id="osFilter">
+                <span class="btn" onclick="filterTable('os')">OS</span>
+                <a href="{{ url_for('get_assets') }}" class="btn" style="background: #95a5a6; margin-left: 10px;" onclick="resetFilters()">Clear</a>
+            </div>
+        </div>
+        
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Name</th><th>OS</th><th>Interface</th><th>IP Address</th><th>First Scan</th><th>Last Scan</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for a in assets %}
+                <tr><td>{{ a.name }}</td><td>{{ a.os }}</td><td>{{ a.interface }}</td><td>{{ a.ip_address }}</td><td>{{ a.first_scan_date }}</td><td>{{ a.last_scan_date }}</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        
+        <div class="form-actions">
+            <span>Showing {{ assets|length }} of {{ all_assets|length }} total assets</span>
+            <a href="{{ url_for('get_assets') }}" class="btn" style="margin-left: 20px;">View All</a>
+        </div>
+    </div>
+    
+    <script>
+        function filterTable(type) {
+            if (type === 'search') {
+                var filter = document.getElementById('search').value.toUpperCase();
+                var table = document.querySelector('.table tbody');
+                var tr = table.getElementsByTagName('tr');
+                for (var i = 0; i < tr.length; i++) {
+                    var td = tr[i].getElementsByTagName('td')[0];
+                    if (td) {
+                        var txtValue = td.textContent || td.innerText;
+                        tr[i].style.display = txtValue.toUpperCase().indexOf(filter) > -1 ? '' : 'none';
+                    }
+                }
+            } else if (type === 'os') {
+                var osFilter = document.getElementById('osFilter').value.toUpperCase();
+                var table = document.querySelector('.table tbody');
+                var tr = table.getElementsByTagName('tr');
+                for (var i = 0; i < tr.length; i++) {
+                    var td = tr[i].getElementsByTagName('td')[1];
+                    if (td) {
+                        var txtValue = td.textContent || td.innerText;
+                        tr[i].style.display = txtValue.toUpperCase().indexOf(osFilter) > -1 ? '' : 'none';
+                    }
+                }
+            } else {
+                for (var i = 0; i < tr.length; i++) {
+                    tr[i].style.display = '';
+                }
+            }
+        }
+        
+        function resetFilters() {
+            document.getElementById('search').value = '';
+            document.getElementById('osFilter').value = '';
+            resetFilters();
+        }
+    </script>
+</body>
+</html>

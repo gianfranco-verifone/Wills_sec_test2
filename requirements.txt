@@ -1,0 +1,9 @@
+flask==3.0.0
+SQLAlchemy==2.0.23
+pymysql==1.1.0
+httpx==0.26.0
+requests==2.31.0
+schedule==1.2.1
+apscheduler==3.10.2
+werkzeug==3.0.1
+click==8.1.7

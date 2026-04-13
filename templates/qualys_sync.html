@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Qualys Sync</title>
+    <style>
+        body { background: #f0f2f5; font-family: sans-serif; margin: 0; padding: 20px; }
+        header { background: #2c3e50; padding: 15px 30px; color: white; margin-bottom: 20px; }
+        .container { max-width: 800px; margin: 0 auto; }
+        
+        .status-box {
+            background: white; padding: 30px; border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        
+        .status-box h2 { color: #2c3e50; margin-bottom: 20px; }
+        
+        .btn {
+            display: inline-block; padding: 13px 28px;
+            border: none; border-radius: 8px;
+            font-size: 15px; font-weight: 600;
+            cursor: pointer; background: #27ae60; color: white;
+            text-decoration: none; margin-top: 20px;
+        }
+        
+        .btn:hover { background: #229954; }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>⚡ Qualys Sync</h1>
+        <p>Automated tool to download Qualys asset & vulnerability data</p>
+    </header>
+    
+    <div class="container">
+        <div class="status-box">
+            <h2>Sync Configuration</h2>
+            <p>Run the Qualys sync script to fetch all new asset and vulnerability data.</p>
+            <p><strong>Prerequisites:</strong></p>
+            <ul>
+                <li>Valid Qualys API Key</li>
+                <li>MySQL database running (config DB in <code>app.py</code>)</li>
+                <li>Access to <code>qualys_sync.py</code> script</li>
+            </ul>
+            <a href="{{ url_for('index') }}" class="btn">← Back to Dashboard</a>
+        </div>
+    </div>
+</body>
+</html>

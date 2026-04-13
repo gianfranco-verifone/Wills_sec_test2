@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ asset.name }} - Details</title>
+    <style>
+        body { background: #f0f2f5; font-family: sans-serif; margin: 0; padding: 20px; }
+        header { background: #2c3e50; padding: 15px 30px; color: white; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; }
+        .container { max-width: 900px; margin: 0 auto; }
+        
+        .card {
+            background: white; padding: 30px;
+            border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        
+        .card h3 { color: #2c3e50; margin-bottom: 20px; }
+        
+        .field-list { display: flex; flex-wrap: wrap; gap: 30px; }
+        .field-item { min-width: 200px; }
+        .field-label { display: block; color: #7f8c9d; font-size: 12px; margin-bottom: 5px; text-transform: uppercase; }
+        .field-value { font-size: 16px; color: #333; }
+        
+        .severity-badge {
+            padding: 5px 12px;
+            border-radius: 15px;
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            display: inline-block;
+        }
+        
+        .severity-critical { background: #e74c3c; color: white; }
+        .severity-high { background: #e67e22; color: white; }
+        .severity-medium { background: #27ae60; color: white; }
+        .severity-low { background: #3498db; color: white; }
+        
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 6px;
+            background: #3498db;
+            color: white;
+            text-decoration: none;
+            cursor: pointer;
+        }
+        
+        .btn:hover { background: #2980b9; }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>🖥️ {{ asset.name }}</h1>
+        <div class="header-right">
+            <a href="{{ url_for('get_assets') }}" class="btn" style="background: #95a5a6;">← Back to Assets</a>
+        </div>
+    </header>
+    
+    <div class="container">
+        <div class="card">
+            <h3>📊 Asset Information</h3>
+            <div class="field-list">
+                <div class="field-item">
+                    <span class="field-label">Operating System:</span>
+                    <span class="field-value">{{ asset.os }}</span>
+                </div>
+                <div class="field-item">
+                    <span class="field-label">Interface:</span>
+                    <span class="field-value">{{ asset.interface }}</span>
+                </div>
+                <div class="field-item">
+                    <span class="field-label">IP Address:</span>
+                    <span class="field-value">{{ asset.ip_address }}</span>
+                </div>
+                <div class="field-item">
+                    <span class="field-label">First Scan:</span>
+                    <span class="field-value">{{ asset.first_scan_date }}</span>
+                </div>
+                <div class="field-item">
+                    <span class="field-label">Last Scan:</span>
+                    <span class="field-value">{{ asset.last_scan_date }}</span>
+                </div>
+                
+                <div class="field-item" style="margin-top: 20px;">
+                    <span class="field-label">Scan Duration:</span>
+                    <span class="field-value" style="color: #7f8c9d;">{{ (asset.last_scan_date - asset.first_scan_date).days }} days</span>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card">
+            <h3>🔒 Vulnerabilities</h3>
+            {% for v in vulnerabilities %}
+            <div style="border-bottom: 1px solid #eaeaea; padding: 15px 0;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                    <div style="flex: 1;">
+                        <strong style="font-size: 14px;">{{ v.name }}</strong>
+                        <span class="severity-badge severity-{{ v.severity }}">{{ v.severity }}</span>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 20px;">
+                        <div style="display: flex; align-items: center;">
+                            <span style="color: #7f8c9d; margin-right: 5px;">Type:</span>
+                            <span style="font-size: 13px;">{{ v.vuln_type }}</span>
+                        </div>
+                        {% if v.vuln_service %}
+                        <div style="display: flex; align-items: center;">
+                            <span style="color: #7f8c9d; margin-right: 5px;">Service:</span>
+                            <span style="font-size: 13px;">{{ v.vuln_service }}</span>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+                <div style="display: flex; gap: 20px; color: #7f8c9d; font-size: 13px;">
+                    <div>Detected: {{ v.detected_date }}</div>
+                    {% if v.fixed_date %}
+                    <div>Fixed: {{ v.fixed_date }}</div>
+                    {% else %}
+                    <div>Not Fixed</div>
+                    {% endif %}
+                </div>
+            </div>
+            {% else %}
+            <p style="color: #7f8c9d;">No vulnerabilities found for this asset.</p>
+            {% endfor %}
+        </div>
+        
+        <div class="card">
+            <h3>➕ Add New Vulnerability</h3>
+            <form method="POST" action="{{ url_for('add_vulnerability') }}">
+                <div style="margin-bottom: 15px;">
+                    <label>Asset ID:</label><br>
+                    <input type="number" name="asset_id" value="{{ asset.id }}" required>
+                </div>
+                <div style="margin-bottom: 15px;">
+                    <label>Vulnerability Name:</label><br>
+                    <input type="text" name="vuln_name" required>
+                </div>
+                <div style="margin-bottom: 15px;">
+                    <label>Severity:</label><br>
+                    <select name="severity" class="btn" style="padding: 10px 15px;">
+                        <option value="critical">Critical</option>
+                        <option value="high">High</option>
+                        <option value="medium">Medium</option>
+                        <option value="low">Low</option>
+                    </select>
+                </div>
+                <div style="margin-bottom: 15px;">
+                    <label>Vulnerability Type:</label><br>
+                    <input type="text" name="vuln_type" required>
+                </div>
+                <div style="margin-bottom: 15px;">
+                    <label>Service:</label><br>
+                    <input type="text" name="vuln_service">
+                </div>
+                <div style="margin-bottom: 15px;">
+                    <label>Detected Date:</label><br>
+                    <input type="date" name="detected_date" required>
+                </div>
+                <div style="margin-bottom: 15px;">
+                    <label>Fixed Date (Optional):</label><br>
+                    <input type="date" name="fixed_date" style="margin-left: 10px;">
+                </div>
+                <button type="submit" class="btn">Add Vulnerability</button>
+            </form>
+        </div>
+    </div>
+</body>
+</html>

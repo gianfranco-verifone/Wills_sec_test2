@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>🔍 Vulnerabilities - ScanTest1</title>
+    <style>
+        body { background: #f0f2f5; font-family: sans-serif; margin: 0; padding: 20px; }
+        header { background: #2c3e50; padding: 15px 30px; color: white; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; }
+        .container { max-width: 1200px; margin: 0 auto; }
+        .filters { background: white; padding: 20px; border-radius: 12px; margin-bottom: 20px; }
+        .table { background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        th, td { padding: 14px 20px; text-align: left; border-bottom: 1px solid #eaeaea; }
+        th { background: #2c3e50; color: white; text-transform: uppercase; font-size: 12px; }
+        .severity-critical { background: #e74c3c; color: white; }
+        .severity-high { background: #e67e22; color: white; }
+        .severity-medium { background: #27ae60; color: white; }
+        .severity-low { background: #3498db; color: white; }
+        .btn { padding: 10px 20px; border: none; border-radius: 6px; background: #3498db; color: white; text-decoration: none; cursor: pointer; display: inline-block; }
+        .btn:hover { background: #2980b9; }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>🔍 Vulnerabilities</h1>
+        <div class="header-right">
+            <a href="{{ url_for('index') }}" class="btn" style="background: #95a5a6;">← Dashboard</a>
+            <a href="{{ url_for('add_vulnerability') }}" class="btn" style="background: #e74c3c;">➕ Add New</a>
+        </div>
+    </header>
+    
+    <div class="container">
+        <div class="filters">
+            <div style="margin-bottom: 15px;"><strong>Search:</strong></div>
+            <input type="text" style="padding: 8px 12px; border: 2px solid #dfe6e9; border-radius: 6px; margin-right: 10px;" placeholder="Search by vuln name..." id="search">
+            <span class="btn" onclick="filterTable('search')">Search</span>
+            <div style="margin-bottom: 15px; margin-top: 15px;"><strong>Filter by Severity:</strong></div>
+            <select style="padding: 8px 12px; border: 2px solid #dfe6e9; border-radius: 6px; margin-right: 10px;" id="severityFilter"><option value="">All Severities</option><option value="critical">Critical</option><option value="high">High</option><option value="medium">Medium</option><option value="low">Low</option></select>
+            <span class="btn" onclick="filterTable('severity')">Filter</span>
+            <a href="{{ url_for('get_vulnerabilities') }}" class="btn" style="background: #95a5a6; margin-left: 10px;" onclick="resetFilters()">Clear</a>
+        </div>
+        
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Vulnerability Name</th><th>Severity</th><th>Type</th><th>Service</th><th>Detected</th><th>Fixed</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for v in vulnerabilities %}
+                <tr>
+                    <td>{{ v.name }}</td>
+                    <td><span class="severity-badge severity-{{ v.severity }}">{{ v.severity }}</span></td>
+                    <td>{{ v.vuln_type }}</td>
+                    <td>{{ v.vuln_service or '-' }}</td>
+                    <td>{{ v.detected_date }}</td>
+                    <td>{{ v.fixed_date if v.fixed_date else 'N/A' }}</td>
+                </tr>
+                {% else %}
+                <tr><td colspan="6" style="text-align: center; color: #7f8c9d;">No vulnerabilities found</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        
+        <div class="form-actions">
+            <span>Showing {{ vulnerabilities|length }} of {{ all_vulnerabilities|length if 'all_vulnerabilities' in vars else len(vulnerabilities) }} total vulnerabilities</span>
+        </div>
+    </div>
+    
+    <script>
+        function filterTable(type) {
+            if (type === 'search') {
+                var filter = document.getElementById('search').value.toLowerCase();
+                var table = document.querySelector('.table tbody');
+                var rows = table.getElementsByTagName('tr');
+                for (var i = 0; i < rows.length; i++) {
+                    var cells = rows[i].getElementsByTagName('td');
+                    rows[i].style.display = 'table-row';
+                    for (var j = 0; j < cells.length; j++) {
+                        if (cells[j]) {
+                            var txtValue = cells[j].textContent || cells[j].innerText;
+                            if (txtValue.toLowerCase().indexOf(filter) < 0) {
+                                rows[i].style.display = 'none';
+                                break;
+                            }
+                        }
+                    }
+                    rows[i].style.display = 'table-row';
+                }
+            } else if (type === 'severity') {
+                var filter = document.getElementById('severityFilter').value;
+                var table = document.querySelector('.table tbody');
+                var rows = table.getElementsByTagName('tr');
+                for (var i = 0; i < rows.length; i++) {
+                    var cells = rows[i].getElementsByTagName('td');
+                    if (cells.length >= 1) {
+                        if (cells[1]) {
+                            var txtValue = cells[1].textContent || cells[1].innerText;
+                            rows[i].style.display = filter ? (txtValue === filter) ? '' : 'none' : '';
+                        }
+                    }
+                }
+            } else {
+                for (var i = 0; i < rows.length; i++) {
+                    rows[i].style.display = '';
+                }
+            }
+        }
+        
+        function resetFilters() {
+            document.getElementById('search').value = '';
+            document.getElementById('severityFilter').value = '';
+            filterTable('search');
+        }
+    </script>
+</body>
+</html>
