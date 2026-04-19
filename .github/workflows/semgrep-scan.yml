@@ -1,0 +1,409 @@
+name: Semgrep SAST + SCA Security Scan
+
+# ── Personal GitHub account edition ──────────────────────────────────────────
+# Differences from enterprise version:
+#  - No SARIF / GitHub Code Scanning upload (requires GitHub Advanced Security,
+#    which is only free on PUBLIC repos; private repos need GHAS/Enterprise)
+#  - PR comments use the built-in GITHUB_TOKEN — no extra secrets needed
+#  - Results stored as workflow artifacts (90 days) AND pushed to a central
+#    private repo you own (semgrep-results)
+#  - Human-readable markdown summary committed alongside the raw JSON bundle
+# ─────────────────────────────────────────────────────────────────────────────
+
+on:
+  push:
+    branches:
+      - main
+      - master
+      - develop
+  pull_request:
+    types: [opened, synchronize, reopened]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write   # Needed to post PR comments via GITHUB_TOKEN
+
+jobs:
+  # ── Job 1: SAST ─────────────────────────────────────────────────────────────
+  semgrep-sast:
+    name: SAST Scan
+    runs-on: ubuntu-latest
+    container:
+      image: semgrep/semgrep:latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run Semgrep SAST
+        run: |
+          semgrep scan \
+            --config auto \
+            --config .semgrep/rules.yml \
+            --json-output semgrep-sast.json \
+            --metrics=off \
+            --timeout 300 \
+            --exclude "*.lock" \
+            --exclude "node_modules/" \
+            --exclude ".git/" \
+            --exclude "vendor/" \
+            --exclude "dist/" \
+            --exclude "build/" \
+            .
+        continue-on-error: true
+
+      - name: Upload SAST JSON artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: semgrep-sast-results-${{ github.run_id }}
+          path: semgrep-sast.json
+          retention-days: 90
+        if: always()
+
+      - name: Post SAST summary to PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fs = require('fs');
+            let results;
+            try {
+              results = JSON.parse(fs.readFileSync('semgrep-sast.json', 'utf8'));
+            } catch (e) {
+              console.log('Could not parse SAST results:', e);
+              return;
+            }
+            const findings = results.results || [];
+            const errors   = findings.filter(f => f.extra?.severity === 'ERROR').length;
+            const warnings = findings.filter(f => f.extra?.severity === 'WARNING').length;
+            const info     = findings.filter(f => f.extra?.severity === 'INFO').length;
+            const total    = findings.length;
+
+            const emoji  = total === 0 ? '✅' : errors > 0 ? '🔴' : '🟡';
+            const runUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+
+            const topFindings = findings.slice(0, 5).map(f =>
+              `- **\`${f.check_id}\`** in \`${f.path}:${f.start?.line ?? '?'}\`\n  > ${(f.extra?.message || '').split('\n')[0]}`
+            ).join('\n');
+
+            const body = [
+              `## ${emoji} Semgrep SAST Results`,
+              '',
+              `| Severity | Count |`,
+              `|----------|------:|`,
+              `| 🔴 Error   | ${errors} |`,
+              `| 🟡 Warning | ${warnings} |`,
+              `| ℹ️ Info    | ${info} |`,
+              `| **Total**  | **${total}** |`,
+              '',
+              total > 0
+                ? `### Top Findings (showing ${Math.min(findings.length, 5)} of ${total})\n${topFindings}`
+                : '🎉 No SAST findings detected!',
+              '',
+              `<sub>📎 <a href="${runUrl}">Run ${context.runId}</a> — download full JSON from the Actions <b>Artifacts</b> section.</sub>`
+            ].join('\n');
+
+            // Replace any previous Semgrep SAST comment on this PR (keeps it tidy)
+            const comments = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo:  context.repo.repo,
+              issue_number: context.issue.number,
+            });
+            for (const c of comments.data) {
+              if (c.user.login === 'github-actions[bot]' && c.body.includes('Semgrep SAST Results')) {
+                await github.rest.issues.deleteComment({
+                  owner: context.repo.owner,
+                  repo:  context.repo.repo,
+                  comment_id: c.id,
+                });
+              }
+            }
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo:  context.repo.repo,
+              issue_number: context.issue.number,
+              body,
+            });
+
+  # ── Job 2: SCA ──────────────────────────────────────────────────────────────
+  semgrep-sca:
+    name: SCA (Dependency) Scan
+    runs-on: ubuntu-latest
+    container:
+      image: semgrep/semgrep:latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run Semgrep SCA
+        run: |
+          semgrep scan \
+            --config "p/supply-chain" \
+            --json-output semgrep-sca.json \
+            --metrics=off \
+            --timeout 300 \
+            .
+        continue-on-error: true
+
+      - name: Upload SCA JSON artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: semgrep-sca-results-${{ github.run_id }}
+          path: semgrep-sca.json
+          retention-days: 90
+        if: always()
+
+      - name: Post SCA summary to PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fs = require('fs');
+            let results;
+            try {
+              results = JSON.parse(fs.readFileSync('semgrep-sca.json', 'utf8'));
+            } catch (e) {
+              console.log('Could not parse SCA results:', e);
+              return;
+            }
+            const findings = results.results || [];
+            const errors   = findings.filter(f => f.extra?.severity === 'ERROR').length;
+            const warnings = findings.filter(f => f.extra?.severity === 'WARNING').length;
+            const total    = findings.length;
+
+            const emoji  = total === 0 ? '✅' : errors > 0 ? '🔴' : '🟡';
+            const runUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+
+            const topFindings = findings.slice(0, 5).map(f =>
+              `- **\`${f.check_id}\`** in \`${f.path}:${f.start?.line ?? '?'}\`\n  > ${(f.extra?.message || '').split('\n')[0]}`
+            ).join('\n');
+
+            const body = [
+              `## ${emoji} Semgrep SCA (Dependency) Results`,
+              '',
+              `| Severity          | Count |`,
+              `|-------------------|------:|`,
+              `| 🔴 Error/Critical  | ${errors} |`,
+              `| 🟡 Warning/Medium  | ${warnings} |`,
+              `| **Total**         | **${total}** |`,
+              '',
+              total > 0
+                ? `### Vulnerable Dependencies (showing ${Math.min(findings.length, 5)} of ${total})\n${topFindings}`
+                : '🎉 No vulnerable dependencies detected!',
+              '',
+              `<sub>📎 <a href="${runUrl}">Run ${context.runId}</a> — download full JSON from the Actions <b>Artifacts</b> section.</sub>`
+            ].join('\n');
+
+            // Replace any previous SCA comment on this PR
+            const comments = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo:  context.repo.repo,
+              issue_number: context.issue.number,
+            });
+            for (const c of comments.data) {
+              if (c.user.login === 'github-actions[bot]' && c.body.includes('Semgrep SCA')) {
+                await github.rest.issues.deleteComment({
+                  owner: context.repo.owner,
+                  repo:  context.repo.repo,
+                  comment_id: c.id,
+                });
+              }
+            }
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo:  context.repo.repo,
+              issue_number: context.issue.number,
+              body,
+            });
+
+  # ── Job 3: Push enriched bundle to your central results repo ────────────────
+  upload-to-central-store:
+    name: Upload to Central Results Repo
+    runs-on: ubuntu-latest
+    needs: [semgrep-sast, semgrep-sca]
+    if: always()
+
+    steps:
+      - name: Download SAST results
+        uses: actions/download-artifact@v4
+        with:
+          name: semgrep-sast-results-${{ github.run_id }}
+          path: ./results
+        continue-on-error: true
+
+      - name: Download SCA results
+        uses: actions/download-artifact@v4
+        with:
+          name: semgrep-sca-results-${{ github.run_id }}
+          path: ./results
+        continue-on-error: true
+
+      - name: Enrich, bundle, and generate markdown summary
+        run: |
+          python3 - << 'PYEOF'
+          import json, os, datetime
+
+          meta = {
+            "repo":       os.environ.get("GITHUB_REPOSITORY", "unknown"),
+            "branch":     os.environ.get("GITHUB_REF_NAME", "unknown"),
+            "commit":     os.environ.get("GITHUB_SHA", "unknown"),
+            "run_id":     os.environ.get("GITHUB_RUN_ID", "unknown"),
+            "run_url":    "https://github.com/{repo}/actions/runs/{run_id}".format(
+                            repo=os.environ.get("GITHUB_REPOSITORY", ""),
+                            run_id=os.environ.get("GITHUB_RUN_ID", "")),
+            "actor":      os.environ.get("GITHUB_ACTOR", "unknown"),
+            "event":      os.environ.get("GITHUB_EVENT_NAME", "unknown"),
+            "scanned_at": datetime.datetime.utcnow().isoformat() + "Z",
+          }
+
+          bundle = {"metadata": meta, "sast": {}, "sca": {}}
+          for ftype, fname in [("sast", "semgrep-sast.json"), ("sca", "semgrep-sca.json")]:
+            path = f"./results/{fname}"
+            if os.path.exists(path):
+              with open(path) as f:
+                bundle[ftype] = json.load(f)
+            else:
+              bundle[ftype] = {"results": [], "_note": "scan produced no output file"}
+
+          for ftype in ["sast", "sca"]:
+            findings = bundle[ftype].get("results", [])
+            bundle[ftype]["_summary"] = {
+              "total":   len(findings),
+              "error":   sum(1 for f in findings if f.get("extra", {}).get("severity") == "ERROR"),
+              "warning": sum(1 for f in findings if f.get("extra", {}).get("severity") == "WARNING"),
+              "info":    sum(1 for f in findings if f.get("extra", {}).get("severity") == "INFO"),
+            }
+
+          os.makedirs("./results", exist_ok=True)
+          with open("./results/semgrep-bundle.json", "w") as f:
+            json.dump(bundle, f, indent=2)
+
+          # Markdown summary (human-readable, rendered in GitHub)
+          sast = bundle["sast"]["_summary"]
+          sca  = bundle["sca"]["_summary"]
+          sast_emoji = "✅" if sast["total"] == 0 else ("🔴" if sast["error"] else "🟡")
+          sca_emoji  = "✅" if sca["total"]  == 0 else ("🔴" if sca["error"]  else "🟡")
+
+          top_sast = bundle["sast"].get("results", [])[:10]
+          top_sca  = bundle["sca"].get("results",  [])[:10]
+
+          def finding_rows(items):
+            if not items:
+              return "_None_"
+            rows = ["| Rule | File | Line | Message |", "|------|------|-----:|---------|"]
+            for f in items:
+              rule = f.get("check_id", "?").split(".")[-1]
+              path = f.get("path", "?")
+              line = f.get("start", {}).get("line", "?")
+              msg  = (f.get("extra", {}).get("message", "") or "").split("\n")[0][:80]
+              rows.append(f"| `{rule}` | `{path}` | {line} | {msg} |")
+            return "\n".join(rows)
+
+          md = f"""# Semgrep Scan — {meta['repo']}
+
+**Branch:** `{meta['branch']}` &nbsp;|&nbsp; **Commit:** [`{meta['commit'][:7]}`](https://github.com/{meta['repo']}/commit/{meta['commit']}) &nbsp;|&nbsp; **Actor:** {meta['actor']}
+**Scanned:** {meta['scanned_at']} &nbsp;|&nbsp; **[View Actions run]({meta['run_url']})**
+
+---
+
+## {sast_emoji} SAST
+
+| Severity | Count |
+|----------|------:|
+| 🔴 Error   | {sast['error']} |
+| 🟡 Warning | {sast['warning']} |
+| ℹ️ Info    | {sast['info']} |
+| **Total**  | **{sast['total']}** |
+
+{"### Top findings (up to 10)" if top_sast else ""}
+{finding_rows(top_sast) if top_sast else ""}
+
+---
+
+## {sca_emoji} SCA (Dependencies)
+
+| Severity        | Count |
+|-----------------|------:|
+| 🔴 Error/Critical | {sca['error']} |
+| 🟡 Warning/Medium | {sca['warning']} |
+| **Total**         | **{sca['total']}** |
+
+{"### Vulnerable packages (up to 10)" if top_sca else ""}
+{finding_rows(top_sca) if top_sca else ""}
+"""
+          with open("./results/semgrep-summary.md", "w") as f:
+            f.write(md)
+          print("Bundle and summary written.")
+          PYEOF
+        env:
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_REF_NAME:   ${{ github.ref_name }}
+          GITHUB_SHA:        ${{ github.sha }}
+          GITHUB_RUN_ID:     ${{ github.run_id }}
+          GITHUB_ACTOR:      ${{ github.actor }}
+          GITHUB_EVENT_NAME: ${{ github.event_name }}
+
+      # Push JSON bundle + markdown summary to your central results repo.
+      # Uses a classic PAT (repo scope) stored as SEMGREP_CENTRAL_REPO_TOKEN.
+      # If the secret is not set the step is skipped — artifacts are still saved.
+      - name: Push results to central repo
+        if: vars.SEMGREP_CENTRAL_REPO != ''
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.SEMGREP_CENTRAL_REPO_TOKEN }}
+          script: |
+            const fs = require('fs');
+
+            const [owner, repo] = (process.env.SEMGREP_CENTRAL_REPO || '').split('/');
+            if (!owner || !repo) {
+              console.log('SEMGREP_CENTRAL_REPO not configured — skipping.');
+              return;
+            }
+
+            const date     = new Date().toISOString().slice(0, 10);
+            const runId    = String(context.runId);
+            const repoSlug = context.repo.repo;
+
+            const files = [
+              { local: './results/semgrep-bundle.json',  remote: `results/${date}/${repoSlug}/${runId}.json` },
+              { local: './results/semgrep-summary.md',   remote: `results/${date}/${repoSlug}/${runId}-summary.md` },
+            ];
+
+            for (const { local, remote } of files) {
+              if (!fs.existsSync(local)) { console.log(`Skipping missing: ${local}`); continue; }
+              const encoded = fs.readFileSync(local).toString('base64');
+              let sha;
+              try {
+                const ex = await github.rest.repos.getContent({ owner, repo, path: remote });
+                sha = ex.data.sha;
+              } catch (_) {}
+              await github.rest.repos.createOrUpdateFileContents({
+                owner, repo, path: remote,
+                message: `scan: ${repoSlug} run ${runId}`,
+                content: encoded,
+                ...(sha ? { sha } : {}),
+              });
+              console.log(`Pushed: ${remote}`);
+            }
+        env:
+          SEMGREP_CENTRAL_REPO: ${{ vars.SEMGREP_CENTRAL_REPO }}
+
+      - name: Save enriched bundle as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: semgrep-bundle-${{ github.run_id }}
+          path: |
+            results/semgrep-bundle.json
+            results/semgrep-summary.md
+          retention-days: 90
+        if: always()
