@@ -1,0 +1,147 @@
+# .semgrep/rules.yml
+# Custom Semgrep rules for your organization.
+# These run IN ADDITION to the auto-detected community rules.
+# Add rules here that reflect your internal security policies.
+
+rules:
+
+  # ── Secrets & Credentials ──────────────────────────────────────────────────
+
+  - id: org-hardcoded-secret-generic
+    patterns:
+      - pattern-either:
+          - pattern: |
+              $VAR = "..."
+          - pattern: |
+              $VAR = '...'
+      - metavariable-regex:
+          metavariable: $VAR
+          regex: (?i)(password|passwd|secret|api_key|apikey|token|auth_token|access_key|private_key|credentials)
+      - metavariable-regex:
+          metavariable: $VAR
+          regex: (?!.*example|.*placeholder|.*changeme|.*your_|.*<)
+    message: >
+      Possible hardcoded credential in variable '$VAR'.
+      Move secrets to environment variables or a secrets manager.
+    severity: ERROR
+    languages: [python, javascript, typescript, java, go, ruby, php]
+    metadata:
+      category: security
+      cwe: CWE-798
+      owasp: A07:2021
+
+  # ── Dangerous Functions ────────────────────────────────────────────────────
+
+  - id: org-python-eval-exec
+    pattern-either:
+      - pattern: eval(...)
+      - pattern: exec(...)
+    message: >
+      Use of eval()/exec() is dangerous and can lead to code injection.
+      Refactor to avoid dynamic code execution.
+    severity: ERROR
+    languages: [python]
+    metadata:
+      category: security
+      cwe: CWE-95
+
+  - id: org-js-eval
+    pattern: eval(...)
+    message: >
+      Use of eval() is dangerous and can lead to XSS or code injection.
+    severity: ERROR
+    languages: [javascript, typescript]
+    metadata:
+      category: security
+      cwe: CWE-95
+
+  # ── SQL Injection ──────────────────────────────────────────────────────────
+
+  - id: org-python-sqli-string-format
+    pattern-either:
+      - pattern: |
+          $CUR.execute("..." % ...)
+      - pattern: |
+          $CUR.execute("..." + ...)
+      - pattern: |
+          $CUR.execute(f"...")
+    message: >
+      Potential SQL injection via string concatenation or f-string.
+      Use parameterized queries instead.
+    severity: ERROR
+    languages: [python]
+    metadata:
+      category: security
+      cwe: CWE-89
+      owasp: A03:2021
+
+  # ── Insecure Deserialization ───────────────────────────────────────────────
+
+  - id: org-python-unsafe-pickle
+    pattern-either:
+      - pattern: pickle.loads(...)
+      - pattern: pickle.load(...)
+    message: >
+      Unpickling untrusted data is a remote code execution risk.
+      Use a safe serialization format (JSON, protobuf) instead.
+    severity: ERROR
+    languages: [python]
+    metadata:
+      category: security
+      cwe: CWE-502
+
+  # ── Logging Sensitive Data ─────────────────────────────────────────────────
+
+  - id: org-log-password
+    patterns:
+      - pattern-either:
+          - pattern: logger.$METHOD(..., $X, ...)
+          - pattern: logging.$METHOD(..., $X, ...)
+          - pattern: console.log(..., $X, ...)
+          - pattern: console.error(..., $X, ...)
+      - metavariable-regex:
+          metavariable: $X
+          regex: (?i)(password|passwd|secret|token|ssn|credit_card|cvv)
+    message: >
+      Possible logging of sensitive data ('$X').
+      Ensure passwords, tokens, and PII are never written to logs.
+    severity: WARNING
+    languages: [python, javascript, typescript, java, go]
+    metadata:
+      category: security
+      cwe: CWE-532
+
+  # ── Infrastructure-as-Code ────────────────────────────────────────────────
+
+  - id: org-tf-public-s3-bucket
+    patterns:
+      - pattern: |
+          resource "aws_s3_bucket_acl" "$NAME" {
+            acl = "public-read"
+            ...
+          }
+    message: >
+      S3 bucket '$NAME' is configured with public-read ACL.
+      Verify this is intentional and add a comment explaining the business need.
+    severity: WARNING
+    languages: [hcl]
+    metadata:
+      category: security
+      cwe: CWE-284
+
+  - id: org-tf-unrestricted-sg
+    patterns:
+      - pattern: |
+          ingress {
+            ...
+            cidr_blocks = ["0.0.0.0/0"]
+            ...
+          }
+    message: >
+      Security group ingress rule allows traffic from 0.0.0.0/0.
+      Restrict to known IP ranges where possible.
+    severity: WARNING
+    languages: [hcl]
+    metadata:
+      category: security
+      cwe: CWE-284
